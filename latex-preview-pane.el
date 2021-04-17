@@ -98,7 +98,11 @@
     (add-hook 'after-save-hook 'latex-preview-pane-update-on-save nil 'make-it-local)
     ;; refresh that pane
 
+<<<<<<< HEAD
     (run-at-time "0 min 3 sec" nil a)))
+=======
+    (run-at-time "0 min 3 sec" nil 'latex-preview-pane-update)))
+>>>>>>> d43cecd (Standardised indentation)
 
 
 (defun lpp/get-message (f)
@@ -138,6 +142,7 @@
 ;;;###autoload
 (defun latex-preview-update ()
   (interactive)
+<<<<<<< HEAD
   (let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
     (if (not (file-exists-p pdf-file))
         (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
@@ -148,6 +153,18 @@
 		       lpp/view-buffer-command
 		       (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
 		       )))))
+=======
+  (let ( (pdf-file (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))))
+  (if (not (file-exists-p pdf-file))
+      (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
+    (if (eq system-type 'windows-nt)
+        (w32-shell-execute "open" pdf-file nil nil)
+      (start-process "Preview"
+        (get-buffer-create "*pdflatex-buffer*")
+        lpp/view-buffer-command
+        (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))
+        )))))
+>>>>>>> d43cecd (Standardised indentation)
 
 
 ;;
@@ -158,7 +175,11 @@
   (interactive)
   (when  (and (boundp 'latex-preview-pane-mode) latex-preview-pane-mode)
     (if (eq (lpp/window-containing-preview) nil)
+<<<<<<< HEAD
 	(init-latex-preview-pane #'latex-preview-pane-update)
+=======
+	(init-latex-preview-pane)
+>>>>>>> d43cecd (Standardised indentation)
       (progn
 	(if (not (eq (get-buffer "*pdflatex-buffer*") nil))
 	    (let ((old-buff (current-buffer)))
@@ -230,6 +251,7 @@ recompilation.")
 
 (defun lpp/display-backtrace ()
   (let ((old-buff (current-buffer)))
+<<<<<<< HEAD
     (progn
       (set-window-buffer (lpp/window-containing-preview) (get-buffer-create "*Latex Preview Pane Errors*"))
       (set-buffer (get-buffer "*Latex Preview Pane Errors*"))
@@ -239,6 +261,17 @@ recompilation.")
       (insert  (lpp/last-backtrace))
       (set-buffer old-buff)
       )))
+=======
+  (progn
+  (set-window-buffer (lpp/window-containing-preview) (get-buffer-create "*Latex Preview Pane Errors*"))
+  (set-buffer (get-buffer "*Latex Preview Pane Errors*"))
+  (erase-buffer)
+  (insert  message-no-preview-yet)
+  (set-buffer (get-buffer "*Latex Preview Pane Errors*"))
+  (insert  (lpp/last-backtrace))
+  (set-buffer old-buff)
+  )))
+>>>>>>> d43cecd (Standardised indentation)
 
 (boundp 'TeX-master)
 
@@ -291,6 +324,7 @@ recompilation.")
   (let ((buff (expand-file-name (lpp/buffer-file-name))) (default-directory (file-name-directory (expand-file-name (lpp/buffer-file-name)))))
     (if (string-match pdf-latex-command "luatex")  ;; long flags in luatex require -- (man luatex)
         (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "--synctex=" synctex-number " -" shell-escape-mode) buff)
+<<<<<<< HEAD
       (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "-synctex=" synctex-number " " shell-escape-mode) buff))))
 
 (defun lpp/doc-view-revert-buffer ()
@@ -316,6 +350,9 @@ recompilation.")
             (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
             (with-current-buffer pdf-buff-name (funcall (lpp/doc-view-revert-buffer) nil t))
             (lpp/tex-sync))))))
+=======
+        (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "-synctex=" synctex-number " " shell-escape-mode) buff))))
+>>>>>>> d43cecd (Standardised indentation)
 
 
 ;;;###autoload
@@ -328,6 +365,23 @@ recompilation.")
         )
     (latex-preview-pane-load)))
 
+<<<<<<< HEAD
+=======
+    (let ((pdf-filename (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name)))
+    (tex-buff (current-buffer))
+    (pdf-buff-name (replace-regexp-in-string "\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
+    (lpp/remove-error-overlays)
+      ;; if the file doesn't exist, say that the file isn't available due to error messages
+      (if (file-exists-p pdf-filename)
+          (if (eq (get-buffer pdf-buff-name) nil)
+              (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
+                (buffer-disable-undo pdf-buff)
+                (set-window-buffer (lpp/window-containing-preview) pdf-buff))
+            (progn
+              (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
+              (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
+              (TeX-pdf-tools-sync-view)))))))
+>>>>>>> d43cecd (Standardised indentation)
 
 ;;
 ;; Mode definition
@@ -356,9 +410,15 @@ recompilation.")
     ["Off" (lpp/set-multifile-mode 'off) :style radio :selected (eq latex-preview-pane-multifile-mode 'off)]
     ["Use AUCTeX/TeX-master" (lpp/set-multifile-mode 'auctex) :style radio :selected (eq latex-preview-pane-multifile-mode 'auctex)]
 
+<<<<<<< HEAD
     ["Prompt" (lpp/set-multifile-mode 'prompt) :style radio :selected (eq latex-preview-pane-multifile-mode 'prompt)]
 
     ))
+=======
+	  ["Prompt" (lpp/set-multifile-mode 'prompt) :style radio :selected (eq latex-preview-pane-multifile-mode 'prompt)]
+
+	  ))
+>>>>>>> d43cecd (Standardised indentation)
 
 
 
@@ -379,6 +439,7 @@ recompilation.")
 
      When Latex Preview Pane mode is enabled, saving a latex file will cause
      a PDF preview pane of your document to appear."
+<<<<<<< HEAD
   ;; The initial value.
   :init-value nil
   ;; The indicator for the mode line.
@@ -391,6 +452,20 @@ recompilation.")
       (init-latex-preview-pane #'latex-preview-pane-load)
     ;; otherwise, kill the window
     (delete-window (lpp/window-containing-preview))))
+=======
+       ;; The initial value.
+       :init-value nil
+       ;; The indicator for the mode line.
+       :lighter " Latex Preview Pane"
+       ;; The minor mode bindings.
+       :keymap latex-preview-pane-mode-map
+       :group 'latex-preview-pane
+       ;; if we are turning on the mode, init the view
+       (if (and (boundp 'latex-preview-pane-mode) latex-preview-pane-mode)
+	   (init-latex-preview-pane)
+	 ;; otherwise, kill the window
+	 (delete-window (lpp/window-containing-preview))))
+>>>>>>> d43cecd (Standardised indentation)
 
 
 ;; set some messages for later
@@ -483,6 +558,7 @@ recompilation.")
       ;; (call-process "rm" nil "*dist-buffer*" nil ("-fr" dist-dir))
       (call-process "mkdir" nil "*dist-buffer*" nil dist-dir)
 
+<<<<<<< HEAD
       ;; copy it over
       (mapc (lambda (f)
 	      (progn
@@ -494,6 +570,19 @@ recompilation.")
 
       (call-process "tar" nil "*dist-buffer*" nil  "-cvf" dist-file (concat dist-dir "/"))
       (message (concat "Package " dist-file " created.")))))
+=======
+    ;; copy it over
+    (mapc (lambda (f)
+	    (progn
+	      (message (concat "Copying " f "..."))
+	      (call-process "cp" nil "*dist-buffer*" nil f dist-dir)
+	      ))
+	  (lpp/packing-list))
+
+
+    (call-process "tar" nil "*dist-buffer*" nil  "-cvf" dist-file (concat dist-dir "/"))
+    (message (concat "Package " dist-file " created.")))))
+>>>>>>> d43cecd (Standardised indentation)
 
 ;; (lpp/make-dist)
 
