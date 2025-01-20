@@ -140,6 +140,7 @@
 ;; Updates an external preview program of the current latex file
 ;;
 ;;;###autoload
+<<<<<<< HEAD
 (defun latex-preview-update ()
   (interactive)
   (let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
@@ -152,6 +153,20 @@
 		       lpp/view-buffer-command
 		       (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
 		       )))))
+=======
+(defun latex-preview-update () 
+(interactive)
+(let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
+(if (not (file-exists-p pdf-file))
+    (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
+  (if (eq system-type 'windows-nt)
+      (w32-shell-execute "open" pdf-file nil nil)
+    (start-process "Preview"
+		   (get-buffer-create "*pdflatex-buffer*")
+		   lpp/view-buffer-command
+		   (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
+		   )))))
+>>>>>>> 24153f0 (fix bugs)
 
 
 ;;
@@ -303,12 +318,28 @@ recompilation.")
     ('doc-view-mode 'doc-view-revert-buffer)
     (_ (lambda (&rest ignore) (message "cannot refresh preview pane")))))
 
+<<<<<<< HEAD
 (defun latex-preview-pane-load ()
   ;; FIXME lpp/buffer-file-name returning a nil on load
   (let ((pdf-filename (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name)))
         (tex-buff (current-buffer))
         (pdf-buff-name (replace-regexp-in-string "\\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
     (lpp/remove-error-overlays)
+=======
+;;;###autoload
+(defun latex-preview-pane-update-p () 
+(if (eq (lpp/invoke-pdf-latex-command) 1)
+    (progn
+      (lpp/display-backtrace)
+      (remove-overlays)
+      (lpp/line-errors-to-layovers (lpp/line-errors))
+      )
+  
+  (let ((pdf-filename (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name)))
+	(tex-buff (current-buffer))
+	(pdf-buff-name (replace-regexp-in-string "\\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
+    (remove-overlays)
+>>>>>>> 24153f0 (fix bugs)
     ;; if the file doesn't exist, say that the file isn't available due to error messages
     (if (file-exists-p pdf-filename)
         (if (eq (get-buffer pdf-buff-name) nil)
