@@ -308,6 +308,11 @@ recompilation.")
         (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "--synctex=" synctex-number " -" shell-escape-mode) buff)
       (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "-synctex=" synctex-number " " shell-escape-mode) buff))))
 
+(defun lpp/doc-view-revert-buffer ()
+  (pcase major-mode
+    ('pdf-view-mode 'pdf-view-revert-buffer)
+    ('doc-view-mode 'doc-view-revert-buffer)
+    (_ (lambda (&rest ignore) (message "cannot refresh preview pane")))))
 
 (defun latex-preview-pane-load ()
   ;; FIXME lpp/buffer-file-name returning a nil on load
@@ -324,7 +329,7 @@ recompilation.")
               (lpp/tex-sync))
           (progn
             (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
-            (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
+            (with-current-buffer pdf-buff-name (funcall (lpp/doc-view-revert-buffer) nil t))
             (lpp/tex-sync))))))
 
 
