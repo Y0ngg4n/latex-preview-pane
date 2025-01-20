@@ -44,24 +44,41 @@
 ;;; Code:
 
 (require 'doc-view)
+
+(defvar latex-preview-pane-current-version "20160912")
 (require 'cl-lib)
 
-(defvar latex-preview-pane-current-version "20210427")
+(defvar latex-preview-pane-current-version "20151021")
 ;;
 ;; Get rid of free variables warnings
 ;;
 
 (defvar message-latex-preview-pane-welcome)
+(defvar message-latex-preview-pane-welcome-minimal)
 (defvar message-no-preview-yet)
+(defvar message-no-preview-yet-minimal)
+
 
 ;;;###autoload
 (defun latex-preview-pane-enable ()
   "Enable `latex-preview-pane-mode' in `latex-mode'."
   (add-hook 'latex-mode-hook (lambda () (latex-preview-pane-mode 1))))
 
+
+
 (defun lpp/window-containing-preview ()
-  (let ((windows (cl-reduce #'append (mapcar `window-list (frame-list)))))
-    (cl-find-if (lambda (window) (window-parameter window 'is-latex-preview-pane)) windows)))
+  (let (windows i docViewWindow)
+    (setq windows (cl-reduce #'append (mapcar `window-list (frame-list))))
+    (setq i 0)
+    (progn
+      (while (and (not docViewWindow) (<= i (length windows)))
+        (let ((currentWindow (pop windows)))
+	  (if (window-parameter currentWindow 'is-latex-preview-pane)
+	      (setq docViewWindow currentWindow)
+	    ))
+        (setq i (1+ i))
+        )
+      docViewWindow)))
 
 ;;
 ;; Init procedure:
@@ -72,23 +89,23 @@
 ;;
 
 ;;;###autoload
-(defun init-latex-preview-pane (a)
+(defun init-latex-preview-pane ()
   (progn
+    (make-local-variable 'auto-update-latex-preview-pane)
     ;; make sure the current window isn't the preview pane
     (set-window-parameter nil 'is-latex-preview-pane nil)
     (if (eq (lpp/window-containing-preview) nil)
         ;; tag the newly created window
-        (set-window-parameter
-         (if latex-preview-pane-use-frame
-             (car (window-list (make-frame)))
-           (split-window nil nil preview-orientation))
-         'is-latex-preview-pane t))
+        (set-window-parameter (split-window nil nil preview-orientation) 'is-latex-preview-pane t)
+      )
     (lpp/display-startup (lpp/window-containing-preview))
     ;; add the save hook
     (add-hook 'after-save-hook 'latex-preview-pane-update-on-save nil 'make-it-local)
     ;; refresh that pane
 
-    (run-at-time "0 min 3 sec" nil 'latex-preview-pane-update)))
+    (run-at-time "0 min 3 sec" nil 'latex-preview-pane-update)
+    )
+  )
 
 
 (defun lpp/get-message (f)
@@ -104,7 +121,9 @@
       (set-window-buffer where (get-buffer-create "*Latex Preview Pane Welcome*"))
       (set-buffer (get-buffer "*Latex Preview Pane Welcome*"))
       (erase-buffer)
-      (insert  message-latex-preview-pane-welcome)
+      (if (eq use-minimal-welcome-page 'on)
+          (insert message-latex-preview-pane-welcome-minimal)
+        (insert message-latex-preview-pane-welcome))
       (set-buffer old-buff)
       )))
 
@@ -128,7 +147,7 @@
 ;;;###autoload
 (defun latex-preview-update ()
   (interactive)
-  (let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
+  (let ( (pdf-file (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))))
     (if (not (file-exists-p pdf-file))
         (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
       (if (eq system-type 'windows-nt)
@@ -136,7 +155,7 @@
         (start-process "Preview"
 		       (get-buffer-create "*pdflatex-buffer*")
 		       lpp/view-buffer-command
-		       (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
+		       (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))
 		       )))))
 
 
@@ -148,7 +167,7 @@
   (interactive)
   (when  (and (boundp 'latex-preview-pane-mode) latex-preview-pane-mode)
     (if (eq (lpp/window-containing-preview) nil)
-	(init-latex-preview-pane #'latex-preview-pane-update)
+	(init-latex-preview-pane)
       (progn
 	(if (not (eq (get-buffer "*pdflatex-buffer*") nil))
 	    (let ((old-buff (current-buffer)))
@@ -162,7 +181,9 @@
 
 (defun latex-preview-pane-update-on-save ()
   (if (eq auto-update-latex-preview-pane 'on)
-      (latex-preview-pane-update)))
+      (latex-preview-pane-update)
+    )
+  )
 
 
 (defun lpp/last-backtrace ()
@@ -199,24 +220,15 @@
       (mapcar (lambda (what) (lpp/chomp (substring what 2))) (latex-pp-filter (lambda (what) (eq (string-match "l\\.[0-9]*" what) 0))  (split-string error-msg "\n"))))))
 
 
-(defvar lpp/error-overlays nil
-  "List of error overlays, saved here to be deleted later upon
-recompilation.")
-
 (defun lpp/line-errors-to-layovers (errors)
-  (dolist (what errors)
-    ;; go to error
-    (goto-char (point-min))
-    (forward-line (1- (string-to-number what)))
-    ;; create overlay
-    (let ((ov (make-overlay (point) (1+ (line-end-position)))))
-      (overlay-put ov 'face 'bad-face)
-      (push ov lpp/error-overlays))))
-
-(defun lpp/remove-error-overlays ()
-  (mapc #'delete-overlay lpp/error-overlays)
-  (setq lpp/error-overlays nil))
-
+  (mapcar (lambda (what) (let ( (line (string-to-number what)))
+			   (let (layoverStart layoverEnd)
+			     (goto-char (point-min)) (forward-line (1- line))
+			     (setq layoverStart (point))
+			     (setq layoverEnd (+ 1 (line-end-position)))
+			     ;;(message (format "Adding Layover On Line: %d, Start: %d, End: %d" line layoverStart layoverEnd))
+			     ;; create the layover
+			     (overlay-put (make-overlay layoverStart layoverEnd) 'face 'bad-face)))) errors))
 
 (defun lpp/display-backtrace ()
   (let ((old-buff (current-buffer)))
@@ -224,7 +236,9 @@ recompilation.")
       (set-window-buffer (lpp/window-containing-preview) (get-buffer-create "*Latex Preview Pane Errors*"))
       (set-buffer (get-buffer "*Latex Preview Pane Errors*"))
       (erase-buffer)
-      (insert  message-no-preview-yet)
+      (if (eq use-minimal-error-page 'on)
+          (insert message-no-preview-yet-minimal)
+        (insert message-no-preview-yet))
       (set-buffer (get-buffer "*Latex Preview Pane Errors*"))
       (insert  (lpp/last-backtrace))
       (set-buffer old-buff)
@@ -244,7 +258,9 @@ recompilation.")
    ((eq (boundp 'TeX-master) nil) (message "The TeX master variable is not defined. To use this mode you must be using AUCTeX on this buffer."))
    ((eq TeX-master nil) (message "AUCTeX is enabled but TeX-master is not yet set. Please set it."))
    ((eq TeX-master t) buffer-file-name)
-   (t (if (lpp/is-tex TeX-master) TeX-master (concat TeX-master ".tex")))))
+   (t (if (lpp/is-tex TeX-master) TeX-master (concat TeX-master ".tex")))
+   )
+  )
 
 (defun lpp/get-file ()
   "Prompt user to enter a file path, with file name completion and input history support."
@@ -263,7 +279,8 @@ recompilation.")
 (defun lpp/buffer-file-name  ()
   (if (eq latex-preview-pane-multifile-mode 'off) buffer-file-name
     (if (eq latex-preview-pane-multifile-mode 'auctex) (lpp/auctex-buffer-file-name)
-      (lpp/prompt-and-save-buffer-file-name))))
+      (lpp/prompt-and-save-buffer-file-name)))
+  )
 
 ;;
 ;; Take a string like "../main" and extract: the path leading UP
@@ -272,85 +289,46 @@ recompilation.")
 
 
 
-(defun lpp/tex-sync ()
-  (if (not (eq synctex-number "0"))
-      (TeX-pdf-tools-sync-view)))
-
-
 (defun lpp/invoke-pdf-latex-command ()
   (let ((buff (expand-file-name (lpp/buffer-file-name))) (default-directory (file-name-directory (expand-file-name (lpp/buffer-file-name)))))
-    (if (string-match pdf-latex-command "luatex")  ;; long flags in luatex require -- (man luatex)
-        (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "--synctex=" synctex-number " -" shell-escape-mode) buff)
-      (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "-synctex=" synctex-number " " shell-escape-mode) buff))))
+    (if shell-escape-mode
+	(call-process pdf-latex-command nil "*pdflatex-buffer*" nil shell-escape-mode buff)
+      (call-process pdf-latex-command nil "*pdflatex-buffer*" nil buff)
+      )
+    )
+  )
 
-(defun lpp/doc-view-revert-buffer ()
-  (pcase major-mode
-    ('pdf-view-mode 'pdf-view-revert-buffer)
-    ('doc-view-mode 'doc-view-revert-buffer)
-    (_ (lambda (&rest ignore) (message "cannot refresh preview pane")))))
-
-<<<<<<< HEAD(defun latex-preview-pane-load ()
-              ;; FIXME lpp/buffer-file-name returning a nil on load
-              (let ((pdf-filename (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name)))
-                    (tex-buff (current-buffer))
-                    (pdf-buff-name (replace-regexp-in-string "\\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
-                (lpp/remove-error-overlays)
-                ;; if the file doesn't exist, say that the file isn't available due to error messages
-                (if (file-exists-p pdf-filename)
-                    (if (eq (get-buffer pdf-buff-name) nil)
-                        (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
-                          (buffer-disable-undo pdf-buff)
-                          (set-window-buffer (lpp/window-containing-preview) pdf-buff)
-                          (lpp/tex-sync))
-                      (progn
-                        (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
-                        (with-current-buffer pdf-buff-name (funcall (lpp/doc-view-revert-buffer) nil t))
-                        (lpp/tex-sync))))))
-
-
-(defun latex-preview-pane-load ()
-  ;; FIXME lpp/buffer-file-name returning a nil on load
-  (let ((pdf-filename (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name)))
-        (tex-buff (current-buffer))
-        (pdf-buff-name (replace-regexp-in-string "\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
-    (lpp/remove-error-overlays)
-    ;; if the file doesn't exist, say that the file isn't available due to error messages
-    (if (file-exists-p pdf-filename)
-        (if (eq (get-buffer pdf-buff-name) nil)
-            (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
-              (buffer-disable-undo pdf-buff)
-              (set-window-buffer (lpp/window-containing-preview) pdf-buff)
-              (lpp/tex-sync))
-          (progn
-            (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
-            (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
-            (lpp/tex-sync))))))
-
+(defun latex-preview-pane-toggle-auto-update ()
+  (interactive)
+  (if (eq auto-update-latex-preview-pane 'on)
+      (setq auto-update-latex-preview-pane 'off)
+    (setq auto-update-latex-preview-pane 'on)
+    )
+  )
 
 ;;;###autoload
 (defun latex-preview-pane-update-p ()
   (if (eq (lpp/invoke-pdf-latex-command) 1)
       (progn
         (lpp/display-backtrace)
-        (lpp/remove-error-overlays)
+        (remove-overlays)
         (lpp/line-errors-to-layovers (lpp/line-errors))
         )
-    (latex-preview-pane-load)))
 
-(let ((pdf-filename (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name)))
-      (tex-buff (current-buffer))
-      (pdf-buff-name (replace-regexp-in-string "\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
-  (lpp/remove-error-overlays)
-  ;; if the file doesn't exist, say that the file isn't available due to error messages
-  (if (file-exists-p pdf-filename)
-      (if (eq (get-buffer pdf-buff-name) nil)
-          (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
-            (buffer-disable-undo pdf-buff)
-            (set-window-buffer (lpp/window-containing-preview) pdf-buff))
-        (progn
-          (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
-          (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
-          (TeX-pdf-tools-sync-view)))))))
+    (let ((pdf-filename (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name)))
+	  (tex-buff (current-buffer))
+	  (pdf-buff-name (replace-regexp-in-string "\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
+      (remove-overlays)
+      ;; if the file doesn't exist, say that the file isn't available due to error messages
+      (if (file-exists-p pdf-filename)
+          (if (eq (get-buffer pdf-buff-name) nil)
+              (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
+                (buffer-disable-undo pdf-buff)
+                (set-window-buffer (lpp/window-containing-preview) pdf-buff))
+            (progn
+              (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
+              (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
+              (TeX-pdf-tools-sync-view)))))))
 
 ;;
 ;; Mode definition
@@ -411,15 +389,18 @@ recompilation.")
   :group 'latex-preview-pane
   ;; if we are turning on the mode, init the view
   (if (and (boundp 'latex-preview-pane-mode) latex-preview-pane-mode)
-      (init-latex-preview-pane #'latex-preview-pane-load)
+      (init-latex-preview-pane)
     ;; otherwise, kill the window
-    (delete-window (lpp/window-containing-preview))))
+    (delete-window (lpp/window-containing-preview))
+    ))
 
 
 ;; set some messages for later
 (let ((installation-dir (if load-file-name (file-name-as-directory (file-name-directory load-file-name)) nil)))
   (defvar message-latex-preview-pane-welcome (lpp/get-message (expand-file-name "message-latex-preview-pane-welcome.txt" installation-dir)))
-  (defvar message-no-preview-yet (lpp/get-message (expand-file-name "message-no-preview-yet.txt" installation-dir))))
+  (defvar message-latex-preview-pane-welcome-minimal (lpp/get-message (expand-file-name "message-latex-preview-pane-welcome-minimal.txt" installation-dir)))
+  (defvar message-no-preview-yet (lpp/get-message (expand-file-name "message-no-preview-yet.txt" installation-dir)))
+  (defvar message-no-preview-yet-minimal (lpp/get-message (expand-file-name "message-no-preview-yet-minimal.txt" installation-dir))))
 
 
 (defgroup latex-preview-pane nil
@@ -431,23 +412,8 @@ recompilation.")
   :type 'string
   :group 'latex-preview-pane)
 
-
-(defcustom synctex-number "0"
-  "Should the pdf-latex-command command run with SyncTeX?"
-  :type '(choice (const :tag "Run without SyncTeX" "0")
-          (const :tag "SyncTeX files are text files" "-1")
-          (const :tag "SyncTeX files are compressed with gz (Standard)" "1")
-          (const :tag "No .gz extension is used" "2")
-          (const :tag "Activate form support, useful for pdftex" "4")
-          (const :tag "Better file compression" "8")
-          (const :tag "Everything" "15")
-          (string :tag "Other values")
-          )
-  :group 'latex-preview-pane)
-
-
 (defcustom shell-escape-mode nil
-  "Should the pdf-latex-command command use shell escaping?"
+  "Should the pdflatex command use shell escaping?"
   :type '(choice (const :tag "Use shell escaping (-shell-escape)" "-shell-escape")
           (const :tag "Do not use shell escaping" nil)
           )
@@ -472,16 +438,33 @@ recompilation.")
           )
   :group 'latex-preview-pane)
 
-(defcustom latex-preview-pane-use-frame nil
-  "If set, LaTeX Preview Pane will show preview in a new frame"
-  :type 'boolean
+(defcustom use-minimal-error-page 'off
+  "Use the normal or a less intrusive error page. Normal will show the classical one, while Minimal will use a smaller one."
+  :type '(choice (const :tag "Normal" off)
+          (const :tag "Minimal" on)
+          )
   :group 'latex-preview-pane)
+
+
+(defcustom use-minimal-welcome-page 'off
+  "Use the normal or a less intrusive welcome page. Normal will show the classical one, while Minimal will use a smaller one."
+  :type '(choice (const :tag "Normal" off)
+          (const :tag "Minimal" on)
+          )
+  :group 'latex-preview-pane)
+
 
 (defcustom auto-update-latex-preview-pane 'on
   "Auto update the preview panel on save."
   :type '(choice (const :tag "On" on)
           (const :tag "Off" off)
           )
+  :group 'latex-preview-pane)
+
+
+(defcustom latex-preview-pane-use-frame nil
+  "If set, LaTeX Preview Pane will show preview in a new frame"
+  :type 'boolean
   :group 'latex-preview-pane)
 
 ;;
@@ -494,9 +477,12 @@ recompilation.")
     "latex-preview-pane-pkg.el"
     "latex-preview-pane.el"
     "message-latex-preview-pane-welcome.txt"
+    "message-latex-preview-pane-welcome-minimal.txt"
     "message-no-preview-yet.txt"
+    "message-no-preview-yet-minimal.txt"
     "ss-error.PNG"
-    "ss.PNG"))
+    "ss.PNG")
+  )
 
 ;; for making distributions
 (defun lpp/make-dist ()
@@ -516,7 +502,10 @@ recompilation.")
 
 
       (call-process "tar" nil "*dist-buffer*" nil  "-cvf" dist-file (concat dist-dir "/"))
-      (message (concat "Package " dist-file " created.")))))
+      (message (concat "Package " dist-file " created."))
+      )
+
+    ))
 
 ;; (lpp/make-dist)
 
