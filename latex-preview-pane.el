@@ -136,21 +136,7 @@
 ;; Updates an external preview program of the current latex file
 ;;
 ;;;###autoload
-<<<<<<< HEAD
 (defun latex-preview-update ()
-  (interactive)
-  (let ( (pdf-file (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))))
-    (if (not (file-exists-p pdf-file))
-        (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
-      (if (eq system-type 'windows-nt)
-          (w32-shell-execute "open" pdf-file nil nil)
-        (start-process "Preview"
-                       (get-buffer-create "*pdflatex-buffer*")
-                       lpp/view-buffer-command
-                       (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))
-                       )))))
-=======
-(defun latex-preview-update () 
   (interactive)
   (let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
     (if (not (file-exists-p pdf-file))
@@ -162,7 +148,6 @@
 		       lpp/view-buffer-command
 		       (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
 		       )))))
->>>>>>> 24153f02d2854b50aaf167ff9efbeaec10910154
 
 
 ;;
