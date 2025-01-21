@@ -47,7 +47,7 @@
 
 (require 'cl-lib)
 
-(defvar latex-preview-pane-current-version "20160912")
+(defvar latex-preview-pane-current-version "20210417")
 ;;
 ;; Get rid of free variables warnings
 ;;
@@ -135,7 +135,7 @@
 ;;;###autoload
 (defun latex-preview-update ()
   (interactive)
-  (let ( (pdf-file (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))))
+  (let ( (pdf-file (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))))
     (if (not (file-exists-p pdf-file))
         (message (concat "File " pdf-file " does not exist. Save your current buffer to generate it."))
       (if (eq system-type 'windows-nt)
@@ -143,7 +143,7 @@
         (start-process "Preview"
 		       (get-buffer-create "*pdflatex-buffer*")
 		       lpp/view-buffer-command
-		       (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name))
+		       (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name))
 		       )))))
 
 
@@ -208,15 +208,24 @@
       (mapcar (lambda (what) (lpp/chomp (substring what 2))) (latex-pp-filter (lambda (what) (eq (string-match "l\\.[0-9]*" what) 0))  (split-string error-msg "\n"))))))
 
 
+(defvar lpp/error-overlays nil
+  "List of error overlays, saved here to be deleted later upon
+recompilation.")
+
 (defun lpp/line-errors-to-layovers (errors)
-  (mapcar (lambda (what) (let ( (line (string-to-number what)))
-			   (let (layoverStart layoverEnd)
-			     (goto-char (point-min)) (forward-line (1- line))
-			     (setq layoverStart (point))
-			     (setq layoverEnd (+ 1 (line-end-position)))
-			     ;;(message (format "Adding Layover On Line: %d, Start: %d, End: %d" line layoverStart layoverEnd))
-			     ;; create the layover
-			     (overlay-put (make-overlay layoverStart layoverEnd) 'face 'bad-face)))) errors))
+  (dolist (what errors)
+    ;; go to error
+    (goto-char (point-min))
+    (forward-line (1- (string-to-number what)))
+    ;; create overlay
+    (let ((ov (make-overlay (point) (1+ (line-end-position)))))
+      (overlay-put ov 'face 'bad-face)
+      (push ov lpp/error-overlays))))
+
+(defun lpp/remove-error-overlays ()
+  (mapc #'delete-overlay lpp/error-overlays)
+  (setq lpp/error-overlays nil))
+
 
 (defun lpp/display-backtrace ()
   (let ((old-buff (current-buffer)))
@@ -279,9 +288,9 @@
 
 (defun lpp/invoke-pdf-latex-command ()
   (let ((buff (expand-file-name (lpp/buffer-file-name))) (default-directory (file-name-directory (expand-file-name (lpp/buffer-file-name)))))
-    (if shell-escape-mode
-	(call-process pdf-latex-command nil "*pdflatex-buffer*" nil shell-escape-mode buff)
-      (call-process pdf-latex-command nil "*pdflatex-buffer*" nil buff)
+    (if (string-match pdf-latex-command "lualatex")  ;; long flags in lualatex require -- (man lualatex)
+        (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "--synctex=" synctex-number " -" shell-escape-mode) buff)
+      (call-process pdf-latex-command nil "*pdflatex-buffer*" nil (concat "-synctex=" synctex-number " " shell-escape-mode) buff)
       )
     )
   )
@@ -294,28 +303,35 @@
     )
   )
 
+(defun lpp/doc-view-revert-buffer ()
+  (pcase major-mode
+    ('pdf-view-mode 'pdf-view-revert-buffer)
+    ('doc-view-mode 'doc-view-revert-buffer)
+    (_ (lambda (&rest ignore) (message "cannot refresh preview pane")))))
+
 ;;;###autoload
 (defun latex-preview-pane-update-p ()
   (if (eq (lpp/invoke-pdf-latex-command) 1)
       (progn
         (lpp/display-backtrace)
-        (remove-overlays)
+        (lpp/remove-error-overlays)
         (lpp/line-errors-to-layovers (lpp/line-errors))
         )
 
-    (let ((pdf-filename (replace-regexp-in-string "\.tex$" ".pdf" (lpp/buffer-file-name)))
+    (let ((pdf-filename (replace-regexp-in-string "\\.tex$" ".pdf" (lpp/buffer-file-name)))
 	  (tex-buff (current-buffer))
-	  (pdf-buff-name (replace-regexp-in-string "\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
-      (remove-overlays)
+	  (pdf-buff-name (replace-regexp-in-string "\\.tex" ".pdf" (buffer-name (get-file-buffer (lpp/buffer-file-name))))))
+      (lpp/remove-error-overlays)
       ;; if the file doesn't exist, say that the file isn't available due to error messages
       (if (file-exists-p pdf-filename)
           (if (eq (get-buffer pdf-buff-name) nil)
               (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
                 (buffer-disable-undo pdf-buff)
-                (set-window-buffer (lpp/window-containing-preview) pdf-buff))
+                (set-window-buffer (lpp/window-containing-preview) pdf-buff)
+                (TeX-pdf-tools-sync-view))
             (progn
               (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
-              (with-current-buffer pdf-buff-name (doc-view-revert-buffer nil t))
+              (with-current-buffer pdf-buff-name (funcall (lpp/doc-view-revert-buffer) nil t))
               (TeX-pdf-tools-sync-view)))))))
 
 ;;
@@ -400,8 +416,21 @@
   :type 'string
   :group 'latex-preview-pane)
 
+(defcustom synctex-number "0"
+  "Should the pdf-latex-command command run with SyncTeX?"
+  :type '(choice (const :tag "Run without SyncTeX" "0")
+          (const :tag "SyncTeX files are text files" "-1")
+          (const :tag "SyncTeX files are compressed with gz (Standard)" "1")
+          (const :tag "No .gz extension is used" "2")
+          (const :tag "Activate form support, useful for pdftex" "4")
+          (const :tag "Better file compression" "8")
+          (const :tag "Everything" "15")
+          (string :tag "Other values")
+          )
+  :group 'latex-preview-pane)
+
 (defcustom shell-escape-mode nil
-  "Should the pdflatex command use shell escaping?"
+  "Should the pdf-latex-command command use shell escaping?"
   :type '(choice (const :tag "Use shell escaping (-shell-escape)" "-shell-escape")
           (const :tag "Do not use shell escaping" nil)
           )
