@@ -4,7 +4,7 @@
 
 ;; Author: John L. Singleton <jsinglet@gmail.com>
 ;; Keywords: latex, preview
-;; Version: 20151021
+;; Version: 20210418
 ;; URL: http://www.emacswiki.org/emacs/LaTeXPreviewPane
 
 ;;; Commentary:
