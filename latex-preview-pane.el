@@ -47,7 +47,8 @@
 
 (require 'cl-lib)
 
-(defvar latex-preview-pane-current-version "20151021")
+(defvar latex-preview-pane-current-version "20210418")
+
 ;;
 ;; Get rid of free variables warnings
 ;;
