@@ -45,10 +45,9 @@
 
 (require 'doc-view)
 
-(defvar latex-preview-pane-current-version "20160912")
 (require 'cl-lib)
 
-(defvar latex-preview-pane-current-version "20151021")
+(defvar latex-preview-pane-current-version "20160912")
 ;;
 ;; Get rid of free variables warnings
 ;;
