@@ -329,11 +329,11 @@ recompilation.")
               (let ((pdf-buff (find-file-noselect pdf-filename 'nowarn)))
                 (buffer-disable-undo pdf-buff)
                 (set-window-buffer (lpp/window-containing-preview) pdf-buff)
-                (TeX-pdf-tools-sync-view))
+                (pdf-sync-minor-mode))
             (progn
               (set-window-buffer (lpp/window-containing-preview) pdf-buff-name)
               (with-current-buffer pdf-buff-name (funcall (lpp/doc-view-revert-buffer) nil t))
-              (TeX-pdf-tools-sync-view)))))))
+              (pdf-sync-minor-mode)))))))
 
 ;;
 ;; Mode definition
